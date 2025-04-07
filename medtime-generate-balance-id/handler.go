@@ -23,6 +23,15 @@ const (
 	IsHTTP          = true // if this is true banchmark test works.
 )
 
+/*
+Answer below questions before starting the function.
+
+When the function invoked?
+ - table_slug -> AFTER | BEFORE | HTTP -> CREATE | UPDATE | MULTIPLE_UPDATE | DELETE | APPEND_MANY2MANY | DELETE_MANY2MANY
+What does it do?
+- Explain the purpose of the function.(O'zbekcha yozilsa ham bo'ladi.)
+*/
+
 // Request structures
 type (
 	// Handle request body
@@ -189,6 +198,9 @@ func (f FunctionAssert) GetBenchmarkRequest() Asserts {
 	}
 }
 
+const urlConst = "https://api.admin.u-code.io"
+const appId = "P-JV2nVIRUtgyPO5xRNeYll2mT4F5QG4bS"
+
 // Handle a serverless request
 func Handle(req []byte) string {
 	Send(string(req))
@@ -214,8 +226,8 @@ func Handle(req []byte) string {
 			Request: Request{
 				Data: map[string]interface{}{
 					"guid": fmt.Sprintf("%v", request.Data.ObjectData["user_id"]),
-				}}),
-		)
+				}},
+		})
 		if err != nil {
 			Send("IN madadio-generate-balance-id" + err.Error())
 			response.Data = map[string]interface{}{"message": "Error while getting slim object", "error": err.Error()}
@@ -226,12 +238,46 @@ func Handle(req []byte) string {
 		Send(fmt.Sprintf("%v", client))
 
 		if client.Data.Data.Response["balance_id"] != nil {
-			response.Data = map[string]interface{}{ }
-			response.Status = "done"
+			response.Data = map[string]interface{}{}
+			response.Status = "done" //if all will be ok else "error"
 			responseByte, _ := json.Marshal(response)
 			return string(responseByte)
+
 		}
+
+		for {
+			_, _, err = UpdateObject(
+				FunctionRequest{
+					BaseUrl:   urlConst,
+					TableSlug: "cleints",
+					AppId:     appId,
+					Request: Request{
+						Data: map[string]interface{}{
+							"guid":       fmt.Sprintf("%v", request.Data.ObjectData["user_id"]),
+							"balance_id": client.Data.Data.Response["phone_number"],
+						}},
+					DisableFaas: true,
+				},
+			)
+
+			if err != nil {
+				Send("IN madadio-generate-balance-id" + err.Error())
+				response.Data = map[string]interface{}{"message": "Error while updating object", "error": err.Error()}
+				response.Status = "error"
+				responseByte, _ := json.Marshal(response)
+				return string(responseByte)
+			} else {
+				break
+			}
+		}
+
 	}
+
+	response.Data = map[string]interface{}{}
+	response.Status = "done" //if all will be ok else "error"
+	responseByte, _ := json.Marshal(response)
+
+	return string(responseByte)
 }
 
 func generateSevenDigitNumber() int {
@@ -261,4 +307,79 @@ func UpdateObject(in FunctionRequest) (ClientApiUpdateResponse, Response, error)
 	}
 
 	return updateObject, response, nil
+}
+
+func GetSlimObject(in FunctionRequest) (ClientApiResponse, Response, error) {
+	response := Response{}
+
+	var getSlimObject ClientApiResponse
+	getSlimResponseInByte, err := DoRequest(fmt.Sprintf("%s/v1/object-slim/%s/%s?from-ofs=%t", in.BaseUrl, in.TableSlug, cast.ToString(in.Request.Data["guid"]), in.DisableFaas), "GET", nil, in.AppId)
+	if err != nil {
+		response.Data = map[string]interface{}{"message": "Error while getting slim object", "error": err.Error()}
+		response.Status = "error"
+		return ClientApiResponse{}, response, errors.New("error")
+	}
+	err = json.Unmarshal(getSlimResponseInByte, &getSlimObject)
+	if err != nil {
+		response.Data = map[string]interface{}{"message": "Error while unmarshalling slim object", "error": err.Error()}
+		response.Status = "error"
+		return ClientApiResponse{}, response, errors.New("error")
+	}
+	return getSlimObject, response, nil
+}
+
+func DoRequest(url string, method string, body interface{}, appId string) ([]byte, error) {
+	data, err := json.Marshal(&body)
+	if err != nil {
+		return nil, err
+	}
+
+	client := &http.Client{
+		Timeout: time.Duration(5 * time.Second),
+	}
+
+	request, err := http.NewRequest(method, url, bytes.NewBuffer(data))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Add("authorization", "API-KEY")
+	request.Header.Add("X-API-KEY", appId)
+
+	resp, err := client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respByte, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return respByte, nil
+}
+
+func Send(text string) {
+	client := &http.Client{}
+
+	text = logFunctionName + " >>>>> " + time.Now().Format(time.RFC3339) + " >>>>> " + text
+	var botUrl = fmt.Sprintf("https://api.telegram.org/bot"+botToken+"/sendMessage?chat_id="+chatID+"&text=%s", text)
+	request, err := http.NewRequest("GET", botUrl, nil)
+	if err != nil {
+		return
+	}
+	resp, err := client.Do(request)
+	if err != nil {
+		return
+	}
+
+	defer resp.Body.Close()
+}
+
+func ConvertResponse(data []byte) (ResponseStatus, error) {
+	response := ResponseStatus{}
+
+	err := json.Unmarshal(data, &response)
+
+	return response, err
 }
