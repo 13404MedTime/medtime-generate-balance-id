@@ -233,3 +233,32 @@ func Handle(req []byte) string {
 		}
 	}
 }
+
+func generateSevenDigitNumber() int {
+	rand.Seed(time.Now().UnixNano())
+	num := rand.Intn(9000000) + 1000000
+	return num
+}
+
+func UpdateObject(in FunctionRequest) (ClientApiUpdateResponse, Response, error) {
+	response := Response{
+		Status: "done",
+	}
+
+	var updateObject ClientApiUpdateResponse
+	updateObjectResponseInByte, err := DoRequest(fmt.Sprintf("%s/v1/object/%s?from-ofs=%t", in.BaseUrl, in.TableSlug, in.DisableFaas), "PUT", in.Request, in.AppId)
+	if err != nil {
+		response.Data = map[string]interface{}{"message": "Error while updating object", "error": err.Error()}
+		response.Status = "error"
+		return ClientApiUpdateResponse{}, response, errors.New("error")
+	}
+
+	err = json.Unmarshal(updateObjectResponseInByte, &updateObject)
+	if err != nil {
+		response.Data = map[string]interface{}{"message": "Error while unmarshalling update object", "error": err.Error()}
+		response.Status = "error"
+		return ClientApiUpdateResponse{}, response, errors.New("error")
+	}
+
+	return updateObject, response, nil
+}
