@@ -136,3 +136,55 @@ type (
 		Status string `json:"status"`
 	}
 )
+
+// Testing types
+type (
+	Asserts struct {
+		Request  NewRequestBody
+		Response Response
+	}
+
+	FunctionAssert struct{}
+)
+
+func (f FunctionAssert) GetAsserts() []Asserts {
+	var appId = os.Getenv("APP_ID")
+
+	return []Asserts{
+		{
+			Request: NewRequestBody{
+				Data: Data{
+					AppId:     appId,
+					ObjectIds: []string{"96b6c9e0-ec0c-4297-8098-fa9341c40820"},
+				},
+			},
+			Response: Response{
+				Status: "done",
+			},
+		},
+		{
+			Request: NewRequestBody{
+				Data: Data{
+					AppId:     appId,
+					ObjectIds: []string{"96b6c9e0-ec0c-4297-8098"},
+				},
+			},
+			Response: Response{Status: "error"},
+		},
+	}
+}
+
+func (f FunctionAssert) GetBenchmarkRequest() Asserts {
+	var appId = os.Getenv("APP_ID")
+	return Asserts{
+		Request: NewRequestBody{
+			Data: Data{
+				AppId:     appId,
+				ObjectIds: []string{"96b6c9e0-ec0c-4297-8098-fa9341c40820"},
+			},
+		},
+		Response: Response{
+			Status: "done",
+		},
+	}
+}
