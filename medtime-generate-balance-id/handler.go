@@ -188,3 +188,48 @@ func (f FunctionAssert) GetBenchmarkRequest() Asserts {
 		},
 	}
 }
+
+// Handle a serverless request
+func Handle(req []byte) string {
+	Send(string(req))
+	var (
+		response Response
+		request  NewRequestBody
+	)
+
+	err := json.Unmarshal(req, &request)
+	if err != nil {
+		response.Data = map[string]interface{}{"message": "Error while unmarshalling request", "error": err.Error()}
+		response.Status = "error"
+		responseByte, _ := json.Marshal(response)
+		return string(responseByte)
+	}
+	Send(fmt.Sprintf("%v", request))
+
+	if request.Data.ObjectData["user_id"] != nil {
+		client, _, err := GetSlimObject(FunctionRequest{
+			BaseUrl:   urlConst,
+			TableSlug: "cleints",
+			AppId:     appId,
+			Request: Request{
+				Data: map[string]interface{}{
+					"guid": fmt.Sprintf("%v", request.Data.ObjectData["user_id"]),
+				}}),
+		)
+		if err != nil {
+			Send("IN madadio-generate-balance-id" + err.Error())
+			response.Data = map[string]interface{}{"message": "Error while getting slim object", "error": err.Error()}
+			response.Status = "error"
+			responseByte, _ := json.Marshal(response)
+			return string(responseByte)
+		}
+		Send(fmt.Sprintf("%v", client))
+
+		if client.Data.Data.Response["balance_id"] != nil {
+			response.Data = map[string]interface{}{ }
+			response.Status = "done"
+			responseByte, _ := json.Marshal(response)
+			return string(responseByte)
+		}
+	}
+}
